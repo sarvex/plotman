@@ -28,7 +28,7 @@ def dstdirs_to_furthest_phase(all_jobs):
        that is emitting to that dst dir.'''
     result = {}
     for j in all_jobs:
-        if not j.dstdir in result.keys() or result[j.dstdir] < j.progress():
+        if j.dstdir not in result or result[j.dstdir] < j.progress():
             result[j.dstdir] = j.progress()
     return result
 
@@ -39,7 +39,7 @@ def dstdirs_to_youngest_phase(all_jobs):
     for j in all_jobs:
         if j.dstdir is None:
             continue
-        if not j.dstdir in result.keys() or result[j.dstdir] > j.progress():
+        if j.dstdir not in result or result[j.dstdir] > j.progress():
             result[j.dstdir] = j.progress()
     return result
 
@@ -49,7 +49,7 @@ def phases_permit_new_job(phases, d, sched_cfg, dir_cfg):
     # Filter unknown-phase jobs
     phases = [ph for ph in phases if ph.known]
 
-    if len(phases) == 0:
+    if not phases:
         return True
 
     milestone = job.Phase(
@@ -67,10 +67,7 @@ def phases_permit_new_job(phases, d, sched_cfg, dir_cfg):
         curr_overrides = dir_cfg.tmp_overrides[d]
         if curr_overrides.tmpdir_max_jobs is not None:
             max_plots = curr_overrides.tmpdir_max_jobs
-    if len(phases) >= max_plots:
-        return False
-
-    return True
+    return len(phases) < max_plots
 
 def maybe_start_new_plot(dir_cfg, sched_cfg, plotting_cfg):
     jobs = job.Job.get_running_jobs(dir_cfg.log)
@@ -89,7 +86,7 @@ def maybe_start_new_plot(dir_cfg, sched_cfg, plotting_cfg):
                 if phases_permit_new_job(phases, d, sched_cfg, dir_cfg) ]
         rankable = [ (d, phases[0]) if phases else (d, job.Phase(known=False))
                 for (d, phases) in eligible ]
-        
+
         if not eligible:
             wait_reason = 'no eligible tempdirs (%ds/%ds)' % (youngest_job_age, global_stagger)
         else:
@@ -120,16 +117,12 @@ def maybe_start_new_plot(dir_cfg, sched_cfg, plotting_cfg):
             if plotting_cfg.e:
                 plot_args.append('-e')
             if plotting_cfg.farmer_pk is not None:
-                plot_args.append('-f')
-                plot_args.append(plotting_cfg.farmer_pk)
+                plot_args.extend(('-f', plotting_cfg.farmer_pk))
             if plotting_cfg.pool_pk is not None:
-                plot_args.append('-p')
-                plot_args.append(plotting_cfg.pool_pk)
+                plot_args.extend(('-p', plotting_cfg.pool_pk))
             if dir_cfg.tmp2 is not None:
-                plot_args.append('-2')
-                plot_args.append(dir_cfg.tmp2)
-
-            logmsg = ('Starting plot job: %s ; logging to %s' % (' '.join(plot_args), logfile))
+                plot_args.extend(('-2', dir_cfg.tmp2))
+            logmsg = f"Starting plot job: {' '.join(plot_args)} ; logging to {logfile}"
 
             try:
                 open_log_file = open(logfile, 'x')
@@ -171,8 +164,4 @@ def maybe_start_new_plot(dir_cfg, sched_cfg, plotting_cfg):
     return (False, wait_reason)
 
 def select_jobs_by_partial_id(jobs, partial_id):
-    selected = []
-    for j in jobs:
-        if j.plot_id.startswith(partial_id):
-            selected.append(j)
-    return selected
+    return [j for j in jobs if j.plot_id.startswith(partial_id)]

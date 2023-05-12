@@ -21,7 +21,7 @@ class Log:
     def log(self, msg):
         '''Log the message and scroll to the end of the log'''
         ts = datetime.datetime.now().strftime('%m-%d %H:%M:%S')
-        self.entries.append(ts + ' ' + msg)
+        self.entries.append(f'{ts} {msg}')
         self.cur_pos = len(self.entries)
 
     def tail(self, num_entries):
@@ -48,17 +48,11 @@ class Log:
             self.log('Log line %d' % i)
 
 def plotting_status_msg(active, status):
-    if active:
-        return '(active) ' + status
-    else:
-        return '(inactive) ' + status
+    return f'(active) {status}' if active else f'(inactive) {status}'
 
 def archiving_status_msg(configured, active, status):
     if configured:
-        if active:
-            return '(active) ' + status
-        else:
-            return '(inactive) ' + status
+        return f'(active) {status}' if active else f'(inactive) {status}'
     else:
         return '(not configured)'
 

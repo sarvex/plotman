@@ -21,11 +21,11 @@ def spawn_archive_process(dir_cfg, all_jobs):
 
     log_message = None
     archiving_status = None
-    
+
     # Look for running archive jobs.  Be robust to finding more than one
     # even though the scheduler should only run one at a time.
     arch_jobs = get_running_archive_jobs(dir_cfg.archive)
-    
+
     if not arch_jobs:
         (should_start, status_or_cmd) = archive(dir_cfg, all_jobs)
         if not should_start:
@@ -37,8 +37,8 @@ def spawn_archive_process(dir_cfg, all_jobs):
                     shell=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.STDOUT,
-                    start_new_session=True) 
-            log_message = 'Starting archive: ' + cmd
+                    start_new_session=True)
+            log_message = f'Starting archive: {cmd}'
             # At least for now it seems that even if we get a new running
             # archive jobs list it doesn't contain the new rsync process.
             # My guess is that this is because the bash in the middle due to
@@ -86,8 +86,7 @@ def compute_priority(phase, gb_free, n_plots):
 
 def get_archdir_freebytes(arch_cfg):
     archdir_freebytes = {}
-    df_cmd = ('ssh %s@%s df -aBK | grep " %s/"' %
-        (arch_cfg.rsyncd_user, arch_cfg.rsyncd_host, arch_cfg.rsyncd_path) )
+    df_cmd = f'ssh {arch_cfg.rsyncd_user}@{arch_cfg.rsyncd_host} df -aBK | grep " {arch_cfg.rsyncd_path}/"'
     with subprocess.Popen(df_cmd, shell=True, stdout=subprocess.PIPE) as proc:
         for line in proc.stdout.readlines():
             fields = line.split()
@@ -103,9 +102,7 @@ def rsync_dest(arch_cfg, arch_dir):
     rsync_path = arch_dir.replace(arch_cfg.rsyncd_path, arch_cfg.rsyncd_module)
     if rsync_path.startswith('/'):
         rsync_path = rsync_path[1:]  # Avoid dup slashes.  TODO use path join?
-    rsync_url = 'rsync://%s@%s:12000/%s' % (
-            arch_cfg.rsyncd_user, arch_cfg.rsyncd_host, rsync_path)
-    return rsync_url
+    return f'rsync://{arch_cfg.rsyncd_user}@{arch_cfg.rsyncd_host}:12000/{rsync_path}'
 
 # TODO: maybe consolidate with similar code in job.py?
 def get_running_archive_jobs(arch_cfg):
@@ -117,9 +114,7 @@ def get_running_archive_jobs(arch_cfg):
         with contextlib.suppress(psutil.NoSuchProcess):
             if proc.name() == 'rsync':
                 args = proc.cmdline()
-                for arg in args:
-                    if arg.startswith(dest):
-                        jobs.append(proc.pid)
+                jobs.extend(proc.pid for arg in args if arg.startswith(dest))
     return jobs
 
 def archive(dir_cfg, all_jobs):
@@ -156,22 +151,23 @@ def archive(dir_cfg, all_jobs):
     archdir_freebytes = get_archdir_freebytes(dir_cfg.archive)
     if not archdir_freebytes:
         return(False, 'No free archive dirs found.')
-    
+
     archdir = ''
-    available = [(d, space) for (d, space) in archdir_freebytes.items() if 
-                 space > 1.2 * plot_util.get_k32_plotsize()]
-    if len(available) > 0:
+    if available := [
+        (d, space)
+        for (d, space) in archdir_freebytes.items()
+        if space > 1.2 * plot_util.get_k32_plotsize()
+    ]:
         index = min(dir_cfg.archive.index, len(available) - 1)
         (archdir, freespace) = sorted(available)[index]
 
     if not archdir:
         return(False, 'No archive directories found with enough free space')
-    
+
     msg = 'Found %s with ~%d GB free' % (archdir, freespace / plot_util.GB)
 
     bwlimit = dir_cfg.archive.rsyncd_bwlimit
     throttle_arg = ('--bwlimit=%d' % bwlimit) if bwlimit else ''
-    cmd = ('rsync %s --compress-level=0 --remove-source-files -P %s %s' %
-            (throttle_arg, chosen_plot, rsync_dest(dir_cfg.archive, archdir)))
+    cmd = f'rsync {throttle_arg} --compress-level=0 --remove-source-files -P {chosen_plot} {rsync_dest(dir_cfg.archive, archdir)}'
 
     return (True, cmd)

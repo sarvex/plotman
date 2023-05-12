@@ -17,8 +17,10 @@ def human_format(num, precision):
     while abs(num) >= 1000:
         magnitude += 1
         num /= 1000.0
-    return (('%.' + str(precision) + 'f%s') %
-            (num, ['', 'K', 'M', 'G', 'T', 'P'][magnitude]))
+    return f'%.{str(precision)}f%s' % (
+        num,
+        ['', 'K', 'M', 'G', 'T', 'P'][magnitude],
+    )
 
 def time_format(sec):
     if sec is None:
@@ -32,7 +34,7 @@ def tmpdir_phases_str(tmpdir_phases_pair):
     tmpdir = tmpdir_phases_pair[0]
     phases = tmpdir_phases_pair[1]
     phase_str = ', '.join(['%d:%d' % ph_subph for ph_subph in sorted(phases)])
-    return ('%s (%s)' % (tmpdir, phase_str))
+    return f'{tmpdir} ({phase_str})'
 
 def split_path_prefix(items):
     if not items:
@@ -41,9 +43,8 @@ def split_path_prefix(items):
     prefix = os.path.commonpath(items)
     if prefix == '/':
         return ('', items)
-    else:
-        remainders = [ os.path.relpath(i, prefix) for i in items ]
-        return (prefix, remainders)
+    remainders = [ os.path.relpath(i, prefix) for i in items ]
+    return (prefix, remainders)
 
 def list_k32_plots(d):
     'List completed k32 plots in a directory (not recursive)'
@@ -64,9 +65,9 @@ def column_wrap(items, n_cols, filler=None):
        of rows containing the slices of those columns.'''
     rows = []
     n_rows = math.ceil(len(items) / n_cols)
-    for row in range(n_rows):
-        row_items = items[row : : n_rows]
-        # Pad and truncate
-        rows.append( (row_items + ([filler] * n_cols))[:n_cols] )
+    rows.extend(
+        (items[row::n_rows] + [filler] * n_cols)[:n_cols]
+        for row in range(n_rows)
+    )
     return rows
 

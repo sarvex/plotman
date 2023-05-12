@@ -34,8 +34,8 @@ def is_plotting_cmdline(cmdline):
     return (
         len(cmdline) >= 3
         and cmdline[0].endswith("chia")
-        and 'plots' == cmdline[1]
-        and 'create' == cmdline[2]
+        and cmdline[1] == 'plots'
+        and cmdline[2] == 'create'
     )
 
 def parse_chia_plot_time(s):
@@ -107,13 +107,10 @@ class Phase:
         if len(t) != 2:
             raise Exception(f'phase must be created from 2-tuple: {t!r}')
 
-        if None in t and not t[0] is t[1]:
+        if None in t and t[0] is not t[1]:
             raise Exception(f'phase can not be partially known: {t!r}')
 
-        if t[0] is None:
-            return cls(known=False)
-
-        return cls(major=t[0], minor=t[1])
+        return cls(known=False) if t[0] is None else cls(major=t[0], minor=t[1])
 
     @classmethod
     def list_from_tuples(cls, l):
@@ -130,7 +127,7 @@ class Job:
     plot_id = '--------'
     proc = None   # will get a psutil.Process
 
-    def get_running_jobs(logroot, cached_jobs=()):
+    def get_running_jobs(self, cached_jobs=()):
         '''Return a list of running plot jobs.  If a cache of preexisting jobs is provided,
            reuse those previous jobs without updating their information.  Always look for
            new jobs not already in the cache.'''
@@ -142,7 +139,7 @@ class Job:
             # iteration and data access.
             with contextlib.suppress(psutil.NoSuchProcess, psutil.AccessDenied):
                 if is_plotting_cmdline(proc.cmdline()):
-                    if proc.pid in cached_jobs_by_pid.keys():
+                    if proc.pid in cached_jobs_by_pid:
                         jobs.append(cached_jobs_by_pid[proc.pid])  # Copy from cache
                     else:
                         with proc.oneshot():
@@ -151,11 +148,7 @@ class Job:
                             )
                             if parsed_command.error is not None:
                                 continue
-                            job = Job(
-                                proc=proc,
-                                parsed_command=parsed_command,
-                                logroot=logroot,
-                            )
+                            job = Job(proc=proc, parsed_command=parsed_command, self=self)
                             if job.help:
                                 continue
                             jobs.append(job)
@@ -237,17 +230,15 @@ class Job:
         # existing plot dirs (especially if they are NFS).
         found_id = False
         found_log = False
-        for attempt_number in range(3):
+        for _ in range(3):
             with open(self.logfile, 'r') as f:
                 for line in f:
-                    m = re.match('^ID: ([0-9a-f]*)', line)
-                    if m:
-                        self.plot_id = m.group(1)
+                    if m := re.match('^ID: ([0-9a-f]*)', line):
+                        self.plot_id = m[1]
                         found_id = True
-                    m = re.match(r'^Starting phase 1/4:.*\.\.\. (.*)', line)
-                    if m:
+                    if m := re.match(r'^Starting phase 1/4:.*\.\.\. (.*)', line):
                         # Mon Nov  2 08:39:53 2020
-                        self.start_time = parse_chia_plot_time(m.group(1))
+                        self.start_time = parse_chia_plot_time(m[1])
                         found_log = True
                         break  # Stop reading lines in file
 
@@ -281,38 +272,30 @@ class Job:
 
         with open(self.logfile, 'r') as f:
             for line in f:
-                # "Starting phase 1/4: Forward Propagation into tmp files... Sat Oct 31 11:27:04 2020"
-                m = re.match(r'^Starting phase (\d).*', line)
-                if m:
-                    phase = int(m.group(1))
+                if m := re.match(r'^Starting phase (\d).*', line):
+                    phase = int(m[1])
                     phase_subphases[phase] = 0
 
-                # Phase 1: "Computing table 2"
-                m = re.match(r'^Computing table (\d).*', line)
-                if m:
-                    phase_subphases[1] = max(phase_subphases[1], int(m.group(1)))
+                if m := re.match(r'^Computing table (\d).*', line):
+                    phase_subphases[1] = max(phase_subphases[1], int(m[1]))
 
-                # Phase 2: "Backpropagating on table 2"
-                m = re.match(r'^Backpropagating on table (\d).*', line)
-                if m:
-                    phase_subphases[2] = max(phase_subphases[2], 7 - int(m.group(1)))
+                if m := re.match(r'^Backpropagating on table (\d).*', line):
+                    phase_subphases[2] = max(phase_subphases[2], 7 - int(m[1]))
 
-                # Phase 3: "Compressing tables 4 and 5"
-                m = re.match(r'^Compressing tables (\d) and (\d).*', line)
-                if m:
-                    phase_subphases[3] = max(phase_subphases[3], int(m.group(1)))
+                if m := re.match(r'^Compressing tables (\d) and (\d).*', line):
+                    phase_subphases[3] = max(phase_subphases[3], int(m[1]))
 
-                # TODO also collect timing info:
+                        # TODO also collect timing info:
 
-                # "Time for phase 1 = 22796.7 seconds. CPU (98%) Tue Sep 29 17:57:19 2020"
-                # for phase in ['1', '2', '3', '4']:
-                    # m = re.match(r'^Time for phase ' + phase + ' = (\d+.\d+) seconds..*', line)
-                        # data.setdefault....
+                        # "Time for phase 1 = 22796.7 seconds. CPU (98%) Tue Sep 29 17:57:19 2020"
+                        # for phase in ['1', '2', '3', '4']:
+                            # m = re.match(r'^Time for phase ' + phase + ' = (\d+.\d+) seconds..*', line)
+                                # data.setdefault....
 
-                # Total time = 49487.1 seconds. CPU (97.26%) Wed Sep 30 01:22:10 2020
-                # m = re.match(r'^Total time = (\d+.\d+) seconds.*', line)
-                # if m:
-                    # data.setdefault(key, {}).setdefault('total time', []).append(float(m.group(1)))
+                        # Total time = 49487.1 seconds. CPU (97.26%) Wed Sep 30 01:22:10 2020
+                        # m = re.match(r'^Total time = (\d+.\d+) seconds.*', line)
+                        # if m:
+                            # data.setdefault(key, {}).setdefault('total time', []).append(float(m.group(1)))
 
         if phase_subphases:
             phase = max(phase_subphases.keys())
@@ -351,11 +334,8 @@ class Job:
         with os.scandir(self.tmpdir) as it:
             for entry in it:
                 if self.plot_id in entry.name:
-                    try:
+                    with contextlib.suppress(FileNotFoundError):
                         total_bytes += entry.stat().st_size
-                    except FileNotFoundError:
-                        # The file might disappear; this being an estimate we don't care
-                        pass
         return total_bytes
 
     def get_run_status(self):
@@ -385,10 +365,7 @@ class Job:
     def get_time_iowait(self):
         cpu_times = self.proc.cpu_times()
         iowait = getattr(cpu_times, 'iowait', None)
-        if iowait is None:
-            return None
-
-        return int(iowait)
+        return None if iowait is None else int(iowait)
 
     def suspend(self, reason=''):
         self.proc.suspend()

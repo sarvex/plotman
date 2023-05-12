@@ -14,26 +14,22 @@ def abbr_path(path, putative_prefix):
         return path
     
 def phase_str(phase):
-    if not phase.known:
-        return '?:?'
-
-    return f'{phase.major}:{phase.minor}'
+    return '?:?' if not phase.known else f'{phase.major}:{phase.minor}'
 
 def phases_str(phases, max_num=None):
     '''Take a list of phase-subphase pairs and return them as a compact string'''
     if not max_num or len(phases) <= max_num:
         return ' '.join([phase_str(pair) for pair in phases])
-    else:
-        n_first = math.floor(max_num / 2)
-        n_last = max_num - n_first
-        n_elided = len(phases) - (n_first + n_last)
-        first = ' '.join([phase_str(pair) for pair in phases[:n_first]])
-        elided = " [+%d] " % n_elided
-        last = ' '.join([phase_str(pair) for pair in phases[n_first + n_elided:]])
-        return first + elided + last
+    n_first = math.floor(max_num / 2)
+    n_last = max_num - n_first
+    n_elided = len(phases) - (n_first + n_last)
+    first = ' '.join([phase_str(pair) for pair in phases[:n_first]])
+    elided = " [+%d] " % n_elided
+    last = ' '.join([phase_str(pair) for pair in phases[n_first + n_elided:]])
+    return first + elided + last
 
 def n_at_ph(jobs, ph):
-    return sum([1 for j in jobs if j.progress() == ph])
+    return sum(1 for j in jobs if j.progress() == ph)
 
 def n_to_char(n):
     n_to_char_map = dict(enumerate(" .:;!"))
@@ -46,10 +42,7 @@ def n_to_char(n):
     return n_to_char_map[n]
 
 def job_viz(jobs):
-    # TODO: Rewrite this in a way that ensures we count every job
-    # even if the reported phases don't line up with expectations.
-    result = ''
-    result += '1'
+    result = '' + '1'
     for i in range(0, 8):
         result += n_to_char(n_at_ph(jobs, job.Phase(1, i)))
     result += '2'
@@ -65,12 +58,9 @@ def job_viz(jobs):
 def status_report(jobs, width, height=None, tmp_prefix='', dst_prefix=''):
     '''height, if provided, will limit the number of rows in the table,
        showing first and last rows, row numbers and an elipsis in the middle.'''
-    abbreviate_jobs_list = False
     n_begin_rows = 0
     n_end_rows = 0
-    if height and height < len(jobs) + 1:  # One row for header
-        abbreviate_jobs_list = True
-
+    abbreviate_jobs_list = bool(height and height < len(jobs) + 1)
     if abbreviate_jobs_list:
         n_rows = height - 2  # Minus one for header, one for ellipsis
         n_begin_rows = int(n_rows / 2)

@@ -27,7 +27,7 @@ class PlotmanArgParser:
         sp.add_parser('version', help='print the version')
 
         sp.add_parser('status', help='show current plotting status')
- 
+
         sp.add_parser('dirs', help='show directories info')
 
         sp.add_parser('interactive', help='run interactive control/monitoring mode')
@@ -74,8 +74,7 @@ class PlotmanArgParser:
         p_analyze.add_argument('logfile', type=str, nargs='+',
                 help='logfile(s) to analyze')
 
-        args = parser.parse_args()
-        return args
+        return parser.parse_args()
 
 def get_term_width():
     columns = 0
@@ -104,7 +103,7 @@ def main():
                 print(config_file_path)
                 return
             print(f"No 'plotman.yaml' file exists at expected location: '{config_file_path}'")
-            print(f"To generate a default config file, run: 'plotman config generate'")
+            print("To generate a default config file, run: 'plotman config generate'")
             return 1
         if args.config_subcommand == 'generate':
             if os.path.isfile(config_file_path):
@@ -142,17 +141,13 @@ def main():
     if args.cmd == 'plot':
         print('...starting plot loop')
         while True:
-            wait_reason = manager.maybe_start_new_plot(cfg.directories, cfg.scheduling, cfg.plotting)
-
-            # TODO: report this via a channel that can be polled on demand, so we don't spam the console
-            if wait_reason:
+            if wait_reason := manager.maybe_start_new_plot(
+                cfg.directories, cfg.scheduling, cfg.plotting
+            ):
                 print('...sleeping %d s: %s' % (cfg.scheduling.polling_time_s, wait_reason))
 
             time.sleep(cfg.scheduling.polling_time_s)
 
-    #
-    # Analysis of completed jobs
-    #
     elif args.cmd == 'analyze':
 
         analyzer.analyze(args.logfile, args.clipterminals,
@@ -165,14 +160,12 @@ def main():
         if args.cmd == 'status':
             print(reporting.status_report(jobs, get_term_width()))
 
-        # Directories report
         elif args.cmd == 'dirs':
             print(reporting.dirs_report(jobs, cfg.directories, cfg.scheduling, get_term_width()))
 
         elif args.cmd == 'interactive':
             interactive.run_interactive()
 
-        # Start running archival
         elif args.cmd == 'archive':
             print('...starting archive loop')
             firstit = True
@@ -188,14 +181,10 @@ def main():
                     print(log_message)
 
 
-        # Debugging: show the destination drive usage schedule
         elif args.cmd == 'dsched':
             for (d, ph) in manager.dstdirs_to_furthest_phase(jobs).items():
-                print('  %s : %s' % (d, str(ph)))
-        
-        #
-        # Job control commands
-        #
+                print(f'  {d} : {str(ph)}')
+
         elif args.cmd in [ 'details', 'files', 'kill', 'suspend', 'resume' ]:
             print(args)
 
@@ -208,11 +197,11 @@ def main():
                 # TODO: allow multiple idprefixes, not just take the first
                 selected = manager.select_jobs_by_partial_id(jobs, args.idprefix[0])
                 if (len(selected) == 0):
-                    print('Error: %s matched no jobs.' % args.idprefix[0])
+                    print(f'Error: {args.idprefix[0]} matched no jobs.')
                 elif len(selected) > 1:
-                    print('Error: "%s" matched multiple jobs:' % args.idprefix[0])
+                    print(f'Error: "{args.idprefix[0]}" matched multiple jobs:')
                     for j in selected:
-                        print('  %s' % j.plot_id)
+                        print(f'  {j.plot_id}')
                     selected = []
 
             for job in selected:
@@ -222,7 +211,7 @@ def main():
                 elif args.cmd == 'files':
                     temp_files = job.get_temp_files()
                     for f in temp_files:
-                        print('  %s' % f)
+                        print(f'  {f}')
 
                 elif args.cmd == 'kill':
                     # First suspend so job doesn't create new files
@@ -243,8 +232,8 @@ def main():
                             os.remove(f)
 
                 elif args.cmd == 'suspend':
-                    print('Suspending ' + job.plot_id)
+                    print(f'Suspending {job.plot_id}')
                     job.suspend()
                 elif args.cmd == 'resume':
-                    print('Resuming ' + job.plot_id)
+                    print(f'Resuming {job.plot_id}')
                     job.resume()

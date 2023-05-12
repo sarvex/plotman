@@ -30,7 +30,7 @@ def test_get_validated_configs__malformed(config_text):
     with pytest.raises(configuration.ConfigurationException) as exc_info:
         configuration.get_validated_configs(malformed_config_text, '/the_path')
 
-    assert exc_info.value.args[0] == f"Config file at: '/the_path' is malformed"
+    assert exc_info.value.args[0] == "Config file at: '/the_path' is malformed"
 
 
 def test_get_validated_configs__missing():
@@ -38,9 +38,9 @@ def test_get_validated_configs__missing():
     with pytest.raises(configuration.ConfigurationException) as exc_info:
         configuration.read_configuration_text('/invalid_path')
 
-    assert exc_info.value.args[0] == (
-        f"No 'plotman.yaml' file exists at expected location: '/invalid_path'. To generate "
-        f"default config file, run: 'plotman config generate'"
+    assert (
+        exc_info.value.args[0]
+        == "No 'plotman.yaml' file exists at expected location: '/invalid_path'. To generate default config file, run: 'plotman config generate'"
     )
 
 

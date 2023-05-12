@@ -33,18 +33,16 @@ def analyze(logfilenames, clipterminals, bytmp, bybitfield):
                     n_sorts = 0
                     n_uniform = 0
 
-                    seq_num = int(m.group(1))
-                    seq_total = int(m.group(2))
+                    seq_num = int(m[1])
+                    seq_total = int(m[2])
                     is_first_last = seq_num == 1 or seq_num == seq_total
 
                 # Temp dirs.  Sample log line:
                 # Starting plotting progress into temporary dirs: /mnt/tmp/01 and /mnt/tmp/a
                 m = re.search(r'^Starting plotting.*dirs: (.*) and (.*)', line)
-                if m:
-                    # Record tmpdir, if slicing by it
-                    if bytmp:
-                        tmpdir = m.group(1)
-                        sl += '-' + tmpdir
+                if m and bytmp:
+                    tmpdir = m[1]
+                    sl += '-' + tmpdir
 
                 # Bitfield marker.  Sample log line(s):
                 # Starting phase 2/4: Backpropagation without bitfield into tmp files... Mon Mar  1 03:56:11 2021
@@ -52,17 +50,13 @@ def analyze(logfilenames, clipterminals, bytmp, bybitfield):
                 # Starting phase 2/4: Backpropagation into tmp files... Fri Apr  2 03:17:32 2021
                 m = re.search(r'^Starting phase 2/4: Backpropagation', line)
                 if bybitfield and m:
-                    if 'without bitfield' in line:
-                        sl += '-nobitfield'
-                    else:
-                        sl += '-bitfield'
-
+                    sl += '-nobitfield' if 'without bitfield' in line else '-bitfield'
                 # Phase timing.  Sample log line:
                 # Time for phase 1 = 22796.7 seconds. CPU (98%) Tue Sep 29 17:57:19 2020
                 for phase in ['1', '2', '3', '4']:
                     m = re.search(r'^Time for phase ' + phase + ' = (\d+.\d+) seconds..*', line)
                     if m:
-                        phase_time[phase] = float(m.group(1))
+                        phase_time[phase] = float(m[1])
 
                 # Uniform sort.  Sample log line:
                 # Bucket 267 uniform sort. Ram: 0.920GiB, u_sort min: 0.688GiB, qs min: 0.172GiB.
@@ -72,24 +66,16 @@ def analyze(logfilenames, clipterminals, bytmp, bybitfield):
                 # Bucket 511 QS. Ram: 0.920GiB, u_sort min: 0.375GiB, qs min: 0.094GiB. force_qs: 1
                 m = re.search(r'Bucket \d+ ([^\.]+)\..*', line)
                 if m and not 'force_qs' in line:
-                    sorter = m.group(1)
+                    sorter = m[1]
                     n_sorts += 1
                     if sorter == 'uniform sort':
                         n_uniform += 1
-                    elif sorter == 'QS':
-                        pass
-                    else:
+                    elif sorter != 'QS':
                         print ('Warning: unrecognized sort ' + sorter)
 
-                # Job completion.  Record total time in sliced data store.
-                # Sample log line:
-                # Total time = 49487.1 seconds. CPU (97.26%) Wed Sep 30 01:22:10 2020
-                m = re.search(r'^Total time = (\d+.\d+) seconds.*', line)
-                if m:
-                    if clipterminals and is_first_last:
-                        pass  # Drop this data; omit from statistics.
-                    else:
-                        data.setdefault(sl, {}).setdefault('total time', []).append(float(m.group(1)))
+                if m := re.search(r'^Total time = (\d+.\d+) seconds.*', line):
+                    if not clipterminals or not is_first_last:
+                        data.setdefault(sl, {}).setdefault('total time', []).append(float(m[1]))
                         for phase in ['1', '2', '3', '4']:
                             data.setdefault(sl, {}).setdefault('phase ' + phase, []).append(phase_time[phase])
                         data.setdefault(sl, {}).setdefault('%usort', []).append(100 * n_uniform // n_sorts)
@@ -100,7 +86,7 @@ def analyze(logfilenames, clipterminals, bytmp, bybitfield):
     headings = ['Slice', 'n'] + all_measures
     tab.header(headings)
 
-    for sl in data.keys():
+    for sl in data:
         row = [sl]
 
         # Sample size
