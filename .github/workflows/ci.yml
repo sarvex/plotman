@@ -130,7 +130,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Download package files
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4.1.7
       with:
         name: dist
         path: dist/
@@ -216,14 +216,14 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Download package files
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4.1.7
       with:
         name: dist
         path: dist/
 
     - name: Download Coverage
       if: matrix.task.download_coverage
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4.1.7
       with:
         name: coverage
         path: coverage_reports
